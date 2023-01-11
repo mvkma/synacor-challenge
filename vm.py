@@ -46,17 +46,76 @@ class VirtualMachine:
     def step(self):
         op, args = self.read_instruction()
 
+        if op == 0:
+            return False
+
         match op:
-            case 0:
-                return False
+            case 1:
+                self.registers[args[0] % 2**15] = self.get_value(args[1])
+            case 2:
+                self.stack.append(self.get_value(args[0]))
+            case 3:
+                self.registers[args[0] % 2**15] = self.stack.pop()
+            case 4:
+                if self.get_value(args[1]) == self.get_value(args[2]):
+                    self.registers[args[0] % 2**15] = 1
+                else:
+                    self.registers[args[0] % 2**15] = 0
+            case 5:
+                if self.get_value(args[1]) > self.get_value(args[2]):
+                    self.registers[args[0] % 2**15] = 1
+                else:
+                    self.registers[args[0] % 2**15] = 0
+            case 6:
+                self.pos = self.get_value(args[0])
+            case 7:
+                if self.get_value(args[0]) != 0:
+                    self.pos = self.get_value(args[1])
+            case 8:
+                if self.get_value(args[0]) == 0:
+                    self.pos = self.get_value(args[1])
+            case 9:
+                b = self.get_value(args[1])
+                c = self.get_value(args[2])
+                self.registers[args[0] % 2**15] = (b + c) % 2**15
+            case 10:
+                b = self.get_value(args[1])
+                c = self.get_value(args[2])
+                self.registers[args[0] % 2**15] = (b * c) % 2**15
+            case 11:
+                b = self.get_value(args[1])
+                c = self.get_value(args[2])
+                self.registers[args[0] % 2**15] = (b % c)
+            case 12:
+                b = self.get_value(args[1])
+                c = self.get_value(args[2])
+                self.registers[args[0] % 2**15] = b & c
+            case 13:
+                b = self.get_value(args[1])
+                c = self.get_value(args[2])
+                self.registers[args[0] % 2**15] = b | c
+            case 14:
+                self.registers[args[0] % 2**15] = 2**15 + (~self.get_value(args[1]))
+            case 15:
+                self.registers[args[0] % 2**15] = self.program[self.get_value(args[1])]
+            case 16:
+                self.program[self.get_value(args[0])] = self.get_value(args[1])
+            case 17:
+                self.stack.append(self.pos)
+                self.pos = self.get_value(args[0])
+            case 18:
+                if len(self.stack) == 0:
+                    return False
+                self.pos = self.stack.pop()
             case 19:
                 # TODO: buffer output
                 print(chr(self.get_value(args[0])), end="")
-                return True
             case 21:
-                 return True
+                pass
             case _:
-                 raise ValueError(f"Unknown instruction: {op}")
+                raise ValueError(f"Unknown instruction: {op}")
+
+        return True
 
     def run(self):
         running = self.step()
@@ -65,3 +124,5 @@ class VirtualMachine:
             running = self.step()
 
         return running
+
+VM = VirtualMachine.from_binary("challenge.bin")
