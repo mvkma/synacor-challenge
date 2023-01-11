@@ -1,4 +1,30 @@
+from enum import IntEnum
+import readline
 import struct
+
+class OpCode(IntEnum):
+    HALT =  0
+    SET  =  1
+    PUSH =  2
+    POP  =  3
+    EQ   =  4
+    GT   =  5
+    JMP  =  6
+    JT   =  7
+    JF   =  8
+    ADD  =  9
+    MULT = 10
+    MOD  = 11
+    AND  = 12
+    OR   = 13
+    NOT  = 14
+    RMEM = 15
+    WMEM = 16
+    CALL = 17
+    RET  = 18
+    OUT  = 19
+    IN   = 20
+    NOOP = 21
 
 class VirtualMachine:
     def __init__(self, program):
@@ -8,6 +34,9 @@ class VirtualMachine:
         self.stack = []
 
         self.pos = 0
+
+        self.input_buffer = ""
+        self.output_buffer = ""
 
     def __repr__(self):
         return f"VM(pos={self.pos})"
@@ -46,72 +75,102 @@ class VirtualMachine:
     def step(self):
         op, args = self.read_instruction()
 
-        if op == 0:
+        if op == OpCode.HALT:
             return False
 
+        if len(self.output_buffer) > 0 and op != OpCode.OUT:
+            print(self.output_buffer, end="")
+            self.output_buffer = ""
+
         match op:
-            case 1:
+            case OpCode.SET:
                 self.registers[args[0] % 2**15] = self.get_value(args[1])
-            case 2:
+
+            case OpCode.PUSH:
                 self.stack.append(self.get_value(args[0]))
-            case 3:
+
+            case OpCode.POP:
                 self.registers[args[0] % 2**15] = self.stack.pop()
-            case 4:
+
+            case OpCode.EQ:
                 if self.get_value(args[1]) == self.get_value(args[2]):
                     self.registers[args[0] % 2**15] = 1
                 else:
                     self.registers[args[0] % 2**15] = 0
-            case 5:
+
+            case OpCode.GT:
                 if self.get_value(args[1]) > self.get_value(args[2]):
                     self.registers[args[0] % 2**15] = 1
                 else:
                     self.registers[args[0] % 2**15] = 0
-            case 6:
+
+            case OpCode.JMP:
                 self.pos = self.get_value(args[0])
-            case 7:
+
+            case OpCode.JT:
                 if self.get_value(args[0]) != 0:
                     self.pos = self.get_value(args[1])
-            case 8:
+
+            case OpCode.JF:
                 if self.get_value(args[0]) == 0:
                     self.pos = self.get_value(args[1])
-            case 9:
+
+            case OpCode.ADD:
                 b = self.get_value(args[1])
                 c = self.get_value(args[2])
                 self.registers[args[0] % 2**15] = (b + c) % 2**15
-            case 10:
+
+            case OpCode.MULT:
                 b = self.get_value(args[1])
                 c = self.get_value(args[2])
                 self.registers[args[0] % 2**15] = (b * c) % 2**15
-            case 11:
+
+            case OpCode.MOD:
                 b = self.get_value(args[1])
                 c = self.get_value(args[2])
                 self.registers[args[0] % 2**15] = (b % c)
-            case 12:
+
+            case OpCode.AND:
                 b = self.get_value(args[1])
                 c = self.get_value(args[2])
                 self.registers[args[0] % 2**15] = b & c
-            case 13:
+
+            case OpCode.OR:
                 b = self.get_value(args[1])
                 c = self.get_value(args[2])
                 self.registers[args[0] % 2**15] = b | c
-            case 14:
+
+            case OpCode.NOT:
                 self.registers[args[0] % 2**15] = 2**15 + (~self.get_value(args[1]))
-            case 15:
+
+            case OpCode.RMEM:
                 self.registers[args[0] % 2**15] = self.program[self.get_value(args[1])]
-            case 16:
+
+            case OpCode.WMEM:
                 self.program[self.get_value(args[0])] = self.get_value(args[1])
-            case 17:
+
+            case OpCode.CALL:
                 self.stack.append(self.pos)
                 self.pos = self.get_value(args[0])
-            case 18:
+
+            case OpCode.RET:
                 if len(self.stack) == 0:
                     return False
                 self.pos = self.stack.pop()
-            case 19:
-                # TODO: buffer output
-                print(chr(self.get_value(args[0])), end="")
-            case 21:
+
+            case OpCode.OUT:
+                self.output_buffer += chr(self.get_value(args[0]))
+
+            case OpCode.IN:
+                if len(self.input_buffer) == 0:
+                    self.input_buffer = input("> ") + "\n"
+
+                self.registers[args[0] % 2**15] = ord(self.input_buffer[0])
+                self.input_buffer = self.input_buffer[1:]
+
+            case OpCode.NOOP:
                 pass
+
             case _:
                 raise ValueError(f"Unknown instruction: {op}")
 
