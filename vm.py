@@ -2,6 +2,8 @@ from enum import IntEnum
 import readline
 import struct
 
+SIZE = 2**15
+
 class OpCode(IntEnum):
     HALT =  0
     SET  =  1
@@ -54,11 +56,16 @@ class VirtualMachine:
         op = self.program[self.pos]
 
         match op:
-            case 0 | 18 | 21: nargs = 0
-            case 2 | 3 | 6 | 17 | 19 | 20: nargs = 1
-            case 1 | 7 | 8 | 14 | 15 | 16: nargs = 2
-            case 4 | 5 | 9 | 10 | 11 | 12 | 13: nargs = 3
-            case _: raise ValueError(f"Unknown instruction: {op}")
+            case OpCode.HALT | OpCode.RET | OpCode.NOOP:
+                nargs = 0
+            case OpCode.PUSH | OpCode.POP | OpCode.JMP | OpCode.CALL | OpCode.OUT | OpCode.IN:
+                nargs = 1
+            case OpCode.SET | OpCode.JT | OpCode.JF | OpCode.NOT | OpCode.RMEM | OpCode.WMEM:
+                nargs = 2
+            case OpCode.EQ | OpCode.GT | OpCode.ADD | OpCode.MULT | OpCode.MOD | OpCode.AND | OpCode.OR:
+                nargs = 3
+            case _:
+                raise ValueError(f"Unknown instruction: {op}")
 
         args = self.program[self.pos + 1 : self.pos + 1 + nargs]
 
@@ -67,10 +74,10 @@ class VirtualMachine:
         return op, args
 
     def get_value(self, n):
-        if n < 2**15:
+        if n < SIZE:
             return n
         else:
-            return self.registers[n % 2**15]
+            return self.registers[n % SIZE]
 
     def step(self):
         op, args = self.read_instruction()
@@ -84,25 +91,25 @@ class VirtualMachine:
 
         match op:
             case OpCode.SET:
-                self.registers[args[0] % 2**15] = self.get_value(args[1])
+                self.registers[args[0] % SIZE] = self.get_value(args[1])
 
             case OpCode.PUSH:
                 self.stack.append(self.get_value(args[0]))
 
             case OpCode.POP:
-                self.registers[args[0] % 2**15] = self.stack.pop()
+                self.registers[args[0] % SIZE] = self.stack.pop()
 
             case OpCode.EQ:
                 if self.get_value(args[1]) == self.get_value(args[2]):
-                    self.registers[args[0] % 2**15] = 1
+                    self.registers[args[0] % SIZE] = 1
                 else:
-                    self.registers[args[0] % 2**15] = 0
+                    self.registers[args[0] % SIZE] = 0
 
             case OpCode.GT:
                 if self.get_value(args[1]) > self.get_value(args[2]):
-                    self.registers[args[0] % 2**15] = 1
+                    self.registers[args[0] % SIZE] = 1
                 else:
-                    self.registers[args[0] % 2**15] = 0
+                    self.registers[args[0] % SIZE] = 0
 
             case OpCode.JMP:
                 self.pos = self.get_value(args[0])
@@ -118,33 +125,33 @@ class VirtualMachine:
             case OpCode.ADD:
                 b = self.get_value(args[1])
                 c = self.get_value(args[2])
-                self.registers[args[0] % 2**15] = (b + c) % 2**15
+                self.registers[args[0] % SIZE] = (b + c) % SIZE
 
             case OpCode.MULT:
                 b = self.get_value(args[1])
                 c = self.get_value(args[2])
-                self.registers[args[0] % 2**15] = (b * c) % 2**15
+                self.registers[args[0] % SIZE] = (b * c) % SIZE
 
             case OpCode.MOD:
                 b = self.get_value(args[1])
                 c = self.get_value(args[2])
-                self.registers[args[0] % 2**15] = (b % c)
+                self.registers[args[0] % SIZE] = (b % c)
 
             case OpCode.AND:
                 b = self.get_value(args[1])
                 c = self.get_value(args[2])
-                self.registers[args[0] % 2**15] = b & c
+                self.registers[args[0] % SIZE] = b & c
 
             case OpCode.OR:
                 b = self.get_value(args[1])
                 c = self.get_value(args[2])
-                self.registers[args[0] % 2**15] = b | c
+                self.registers[args[0] % SIZE] = b | c
 
             case OpCode.NOT:
-                self.registers[args[0] % 2**15] = 2**15 + (~self.get_value(args[1]))
+                self.registers[args[0] % SIZE] = SIZE + (~self.get_value(args[1]))
 
             case OpCode.RMEM:
-                self.registers[args[0] % 2**15] = self.program[self.get_value(args[1])]
+                self.registers[args[0] % SIZE] = self.program[self.get_value(args[1])]
 
             case OpCode.WMEM:
                 self.program[self.get_value(args[0])] = self.get_value(args[1])
@@ -165,7 +172,7 @@ class VirtualMachine:
                 if len(self.input_buffer) == 0:
                     self.input_buffer = input("> ") + "\n"
 
-                self.registers[args[0] % 2**15] = ord(self.input_buffer[0])
+                self.registers[args[0] % SIZE] = ord(self.input_buffer[0])
                 self.input_buffer = self.input_buffer[1:]
 
             case OpCode.NOOP:
