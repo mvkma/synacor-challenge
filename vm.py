@@ -1,6 +1,7 @@
 from enum import IntEnum
 import readline
 import struct
+import sys
 
 SIZE = 2**15
 
@@ -29,7 +30,7 @@ class OpCode(IntEnum):
     NOOP = 21
 
 class VirtualMachine:
-    def __init__(self, program):
+    def __init__(self, program, stdin=sys.stdin, stdout=sys.stdout):
         self.program = program
 
         self.registers = [0] * 8
@@ -39,6 +40,8 @@ class VirtualMachine:
 
         self.input_buffer = ""
         self.output_buffer = ""
+        self.stdin = stdin
+        self.stdout = stdout
 
     def __repr__(self):
         return f"VM(pos={self.pos})"
@@ -86,7 +89,7 @@ class VirtualMachine:
             return False
 
         if len(self.output_buffer) > 0 and op != OpCode.OUT:
-            print(self.output_buffer, end="")
+            print(self.output_buffer, end="", file=self.stdout)
             self.output_buffer = ""
 
         match op:
@@ -170,7 +173,7 @@ class VirtualMachine:
 
             case OpCode.IN:
                 if len(self.input_buffer) == 0:
-                    self.input_buffer = input("> ") + "\n"
+                    self.input_buffer = self.stdin.readline()
 
                 self.registers[args[0] % SIZE] = ord(self.input_buffer[0])
                 self.input_buffer = self.input_buffer[1:]
