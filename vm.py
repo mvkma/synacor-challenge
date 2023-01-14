@@ -1,4 +1,5 @@
 from enum import IntEnum
+from collections import namedtuple
 import readline
 import struct
 import sys
@@ -29,13 +30,13 @@ class OpCode(IntEnum):
     IN   = 20
     NOOP = 21
 
+VMState = namedtuple("VMState", ["program", "registers", "stack", "pos"])
+
 class VirtualMachine:
     def __init__(self, program, stdin=sys.stdin, stdout=sys.stdout):
         self.program = program
-
         self.registers = [0] * 8
         self.stack = []
-
         self.pos = 0
 
         self.input_buffer = ""
@@ -54,6 +55,22 @@ class VirtualMachine:
         program = [b[0] for b in struct.iter_unpack("<H", buf)]
 
         return VirtualMachine(program)
+
+    @classmethod
+    def from_state(self, state):
+        VM = VirtualMachine(list(state.program))
+        VM.registers = list(state.registers)
+        VM.stack = list(state.stack)
+        VM.pos = state.pos
+
+        return VM
+
+    def get_state(self):
+        memory = tuple(self.program)
+        registers = tuple(self.registers)
+        stack = tuple(self.stack)
+
+        return VMState(memory, registers, stack, self.pos)
 
     def read_instruction(self):
         op = self.program[self.pos]
