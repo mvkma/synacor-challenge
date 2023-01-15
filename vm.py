@@ -30,6 +30,31 @@ class OpCode(IntEnum):
     IN   = 20
     NOOP = 21
 
+OpCodeArguments = {
+    OpCode.HALT: 0,
+    OpCode.RET:  0,
+    OpCode.NOOP: 0,
+    OpCode.PUSH: 1,
+    OpCode.POP:  1,
+    OpCode.JMP:  1,
+    OpCode.CALL: 1,
+    OpCode.OUT:  1,
+    OpCode.IN:   1,
+    OpCode.SET:  2,
+    OpCode.JT:   2,
+    OpCode.JF:   2,
+    OpCode.NOT:  2,
+    OpCode.RMEM: 2,
+    OpCode.WMEM: 2,
+    OpCode.EQ:   3,
+    OpCode.GT:   3,
+    OpCode.ADD:  3,
+    OpCode.MULT: 3,
+    OpCode.MOD:  3,
+    OpCode.AND:  3,
+    OpCode.OR:   3,
+}
+
 VMState = namedtuple("VMState", ["program", "registers", "stack", "pos"])
 
 class VirtualMachine:
@@ -74,18 +99,7 @@ class VirtualMachine:
 
     def read_instruction(self):
         op = self.program[self.pos]
-
-        match op:
-            case OpCode.HALT | OpCode.RET | OpCode.NOOP:
-                nargs = 0
-            case OpCode.PUSH | OpCode.POP | OpCode.JMP | OpCode.CALL | OpCode.OUT | OpCode.IN:
-                nargs = 1
-            case OpCode.SET | OpCode.JT | OpCode.JF | OpCode.NOT | OpCode.RMEM | OpCode.WMEM:
-                nargs = 2
-            case OpCode.EQ | OpCode.GT | OpCode.ADD | OpCode.MULT | OpCode.MOD | OpCode.AND | OpCode.OR:
-                nargs = 3
-            case _:
-                raise ValueError(f"Unknown instruction: {op}")
+        nargs = OpCodeArguments[op]
 
         args = self.program[self.pos + 1 : self.pos + 1 + nargs]
 
