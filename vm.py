@@ -68,6 +68,7 @@ class VirtualMachine:
         self.output_buffer = ""
         self.stdin = stdin
         self.stdout = stdout
+        self.nsteps = 0
 
     def __repr__(self):
         return f"VM(pos={self.pos})"
@@ -119,7 +120,7 @@ class VirtualMachine:
         if op == OpCode.HALT:
             return False
 
-        if len(self.output_buffer) > 0 and op != OpCode.OUT:
+        if len(self.output_buffer) > 0 and self.output_buffer[-1] == "\n":
             print(self.output_buffer, end="", file=self.stdout)
             self.output_buffer = ""
 
@@ -214,6 +215,8 @@ class VirtualMachine:
 
             case _:
                 raise ValueError(f"Unknown instruction: {op}")
+
+        self.nsteps += 1
 
         return True
 
