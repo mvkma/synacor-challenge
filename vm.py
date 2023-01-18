@@ -1,6 +1,5 @@
 from enum import IntEnum
 from collections import namedtuple
-import readline
 import struct
 import sys
 
@@ -58,7 +57,7 @@ OpCodeArguments = {
 VMState = namedtuple("VMState", ["program", "registers", "stack", "pos"])
 
 class VirtualMachine:
-    def __init__(self, program, stdin=sys.stdin, stdout=sys.stdout):
+    def __init__(self, program, stdin=sys.stdin, stdout=sys.stdout, break_on_input=False):
         self.program = program
         self.registers = [0] * 8
         self.stack = []
@@ -70,11 +69,13 @@ class VirtualMachine:
         self.stdout = stdout
         self.nsteps = 0
 
+        self.break_on_input = break_on_input
+
     def __repr__(self):
         return f"VM(pos={self.pos})"
 
     @classmethod
-    def from_binary(self, fname):
+    def from_binary(cls, fname):
         with open(fname, "rb") as f:
             buf = f.read()
 
@@ -83,7 +84,7 @@ class VirtualMachine:
         return VirtualMachine(program)
 
     @classmethod
-    def from_state(self, state):
+    def from_state(cls, state):
         VM = VirtualMachine(list(state.program))
         VM.registers = list(state.registers)
         VM.stack = list(state.stack)
@@ -205,6 +206,11 @@ class VirtualMachine:
 
             case OpCode.IN:
                 if len(self.input_buffer) == 0:
+
+                    if self.break_on_input:
+                        self.pos -= 2
+                        return False
+
                     self.input_buffer = self.stdin.readline()
 
                 self.registers[args[0] % SIZE] = ord(self.input_buffer[0])
