@@ -54,7 +54,12 @@ OpCodeArguments = {
     OpCode.OR:   3,
 }
 
-VMState = namedtuple("VMState", ["program", "registers", "stack", "pos"])
+class VirtualMachineStatus(IntEnum):
+    FINISHED        = 0
+    RUNNING         = 1
+    EXPECTING_INPUT = 2
+
+VMState = namedtuple("VMState", ["program", "registers", "stack", "pos", "status"])
 
 class VirtualMachine:
     def __init__(self, program, stdin=sys.stdin, stdout=sys.stdout, break_on_input=False):
@@ -67,9 +72,10 @@ class VirtualMachine:
         self.output_buffer = ""
         self.stdin = stdin
         self.stdout = stdout
-        self.nsteps = 0
+        self.ncycles = 0
 
         self.break_on_input = break_on_input
+        self.status = VirtualMachineStatus.RUNNING
 
     def __repr__(self):
         return f"VM(pos={self.pos})"
@@ -89,6 +95,7 @@ class VirtualMachine:
         VM.registers = list(state.registers)
         VM.stack = list(state.stack)
         VM.pos = state.pos
+        VM.status = state.status
 
         return VM
 
@@ -97,7 +104,7 @@ class VirtualMachine:
         registers = tuple(self.registers)
         stack = tuple(self.stack)
 
-        return VMState(memory, registers, stack, self.pos)
+        return VMState(memory, registers, stack, self.pos, self.status)
 
     def read_instruction(self):
         op = self.program[self.pos]
@@ -119,6 +126,7 @@ class VirtualMachine:
         op, args = self.read_instruction()
 
         if op == OpCode.HALT:
+            self.status = VirtualMachineStatus.FINISHED
             return False
 
         if len(self.output_buffer) > 0 and self.output_buffer[-1] == "\n":
@@ -209,6 +217,7 @@ class VirtualMachine:
 
                     if self.break_on_input:
                         self.pos -= 2
+                        self.status = VirtualMachineStatus.EXPECTING_INPUT
                         return False
 
                     self.input_buffer = self.stdin.readline()
@@ -222,11 +231,13 @@ class VirtualMachine:
             case _:
                 raise ValueError(f"Unknown instruction: {op}")
 
-        self.nsteps += 1
+        self.ncycles += 1
 
         return True
 
     def run(self):
+        self.status = VirtualMachineStatus.RUNNING
+
         running = self.step()
 
         while running:

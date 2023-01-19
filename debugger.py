@@ -1,7 +1,9 @@
 import time
 import urwid
 
-from vm import VirtualMachine
+from vm import VirtualMachine, VirtualMachineStatus
+
+SCREEN_UPDATE_INTERVAL = 100
 
 class OutputBuffer(urwid.ListWalker):
     def __init__(self):
@@ -50,9 +52,10 @@ def main(vm):
     position_text = urwid.Text(f"Position: {vm.pos}")
     registers_text = urwid.Text(f"Registers: {vm.registers}")
     stack_text = urwid.Text(f"Stack: {vm.stack}")
-    nsteps_text = urwid.Text(f"Steps: {vm.nsteps}")
+    ncycles_text = urwid.Text(f"Steps: {vm.ncycles}")
+    vmstatus_text = urwid.Text(f"Status: {str(vm.status)}")
     status_widget = urwid.LineBox(
-        urwid.Pile([position_text, registers_text, stack_text, nsteps_text]),
+        urwid.Pile([position_text, registers_text, stack_text, ncycles_text, vmstatus_text]),
         title="Status"
     )
 
@@ -87,25 +90,30 @@ def main(vm):
         position_text.set_text(f"Position: {vm.pos}")
         registers_text.set_text(f"Registers: {vm.registers}")
         stack_text.set_text(f"Stack: {vm.stack}")
-        nsteps_text.set_text(f"Steps: {vm.nsteps}")
+        ncycles_text.set_text(f"Steps: {vm.ncycles}")
+        vmstatus_text.set_text(f"Status: {str(vm.status)}")
 
         output_widget.set_focus(len(output_walker.lines))
 
         loop.draw_screen()
 
     def vm_step():
-        running = vm.step()
+        vm.step()
         update_status()
 
     def vm_run():
+        if vm.status == VirtualMachineStatus.FINISHED:
+            return
+
         running = vm.step()
         while running:
             running = vm.step()
-            if vm.nsteps % 100 == 0:
+            if vm.ncycles % SCREEN_UPDATE_INTERVAL == 0:
                 update_status()
 
-        input_widget.set_edit_text("")
-        pile.focus_position = 3
+        if vm.status == VirtualMachineStatus.EXPECTING_INPUT:
+            input_widget.set_edit_text("")
+            pile.focus_position = 3
 
     def show_or_exit(key):
         match key:
@@ -116,7 +124,7 @@ def main(vm):
             case "r":
                 vm_run()
             case "enter":
-                if pile.focus_position == 3:
+                if pile.focus_position == 3 and vm.status != VirtualMachineStatus.FINISHED:
                     text = input_widget.get_edit_text() + "\n"
                     vm.input_buffer = text
                     pile.focus_position = 2
