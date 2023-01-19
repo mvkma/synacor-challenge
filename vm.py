@@ -1,5 +1,6 @@
 from enum import IntEnum
 from collections import namedtuple
+from typing import Tuple, List
 import struct
 import sys
 
@@ -62,7 +63,11 @@ class VirtualMachineStatus(IntEnum):
 VMState = namedtuple("VMState", ["program", "registers", "stack", "pos", "status"])
 
 class VirtualMachine:
-    def __init__(self, program, stdin=sys.stdin, stdout=sys.stdout, break_on_input=False):
+    def __init__(self,
+                 program: list,
+                 stdin=sys.stdin,
+                 stdout=sys.stdout,
+                 break_on_input : bool = False):
         self.program = program
         self.registers = [0] * 8
         self.stack = []
@@ -77,11 +82,11 @@ class VirtualMachine:
         self.break_on_input = break_on_input
         self.status = VirtualMachineStatus.RUNNING
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"VM(pos={self.pos})"
 
     @classmethod
-    def from_binary(cls, fname):
+    def from_binary(cls, fname: str):
         with open(fname, "rb") as f:
             buf = f.read()
 
@@ -90,7 +95,7 @@ class VirtualMachine:
         return VirtualMachine(program)
 
     @classmethod
-    def from_state(cls, state):
+    def from_state(cls, state: VMState):
         VM = VirtualMachine(list(state.program))
         VM.registers = list(state.registers)
         VM.stack = list(state.stack)
@@ -99,14 +104,14 @@ class VirtualMachine:
 
         return VM
 
-    def get_state(self):
+    def get_state(self) -> VMState:
         memory = tuple(self.program)
         registers = tuple(self.registers)
         stack = tuple(self.stack)
 
         return VMState(memory, registers, stack, self.pos, self.status)
 
-    def read_instruction(self):
+    def read_instruction(self) -> Tuple[int, List[int]]:
         op = self.program[self.pos]
         nargs = OpCodeArguments[op]
 
@@ -116,13 +121,13 @@ class VirtualMachine:
 
         return op, args
 
-    def get_value(self, n):
+    def get_value(self, n: int) -> int:
         if n < SIZE:
             return n
         else:
             return self.registers[n % SIZE]
 
-    def step(self):
+    def step(self) -> bool:
         op, args = self.read_instruction()
 
         if op == OpCode.HALT:
@@ -235,7 +240,7 @@ class VirtualMachine:
 
         return True
 
-    def run(self):
+    def run(self) -> bool:
         self.status = VirtualMachineStatus.RUNNING
 
         running = self.step()

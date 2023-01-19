@@ -1,5 +1,5 @@
-import time
 import urwid
+from typing import Tuple
 
 from vm import VirtualMachine, VirtualMachineStatus
 
@@ -10,23 +10,23 @@ class OutputBuffer(urwid.ListWalker):
         self.lines = [urwid.Text("")]
         self.focus = 0
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.lines)
 
-    def get_focus(self):
+    def get_focus(self) -> Tuple[urwid.Edit, int] | Tuple[None, None]:
         return self._get_line_at(self.focus)
 
-    def set_focus(self, focus):
+    def set_focus(self, focus: int) -> None:
         self.focus = focus
         self._modified()
 
-    def get_next(self, pos: int):
+    def get_next(self, pos: int) -> Tuple[urwid.Edit, int] | Tuple[None, None]:
         return self._get_line_at(pos + 1)
 
-    def get_prev(self, pos: int):
+    def get_prev(self, pos: int) -> Tuple[urwid.Edit, int] | Tuple[None, None]:
         return self._get_line_at(pos - 1)
 
-    def _get_line_at(self, pos: int):
+    def _get_line_at(self, pos: int) -> Tuple[urwid.Edit, int] | Tuple[None, None]:
         if pos < 0 or len(self.lines) == 0:
             return None, None
 
@@ -35,7 +35,7 @@ class OutputBuffer(urwid.ListWalker):
 
         return self.lines[-1], pos
 
-    def write(self, data: str):
+    def write(self, data: str) -> None:
         final_newline = self.lines.pop()
 
         new_lines = data.splitlines()
@@ -107,7 +107,7 @@ class VMDebugger():
 
         self.update_status_widget(force_update=False)
 
-    def unhandled_input(self, key):
+    def unhandled_input(self, key: str) -> None:
         self.status_line.set_text(f"You pressed: {repr(key)}")
 
         match key:
@@ -128,11 +128,11 @@ class VMDebugger():
             case _:
                 self.status_line.set_text(f"You pressed: {repr(key)}")
 
-    def vm_step(self):
+    def vm_step(self) -> None:
         self.vm.step()
         self.update_status_widget()
 
-    def vm_run(self):
+    def vm_run(self) -> None:
         if self.vm.status == VirtualMachineStatus.FINISHED:
             return
 
@@ -149,7 +149,7 @@ class VMDebugger():
             self.input_widget.set_edit_text("")
             self.main_pile.focus_position = 3
 
-    def update_status_widget(self, force_update : bool = True):
+    def update_status_widget(self, force_update : bool = True) -> None:
         self.text_position.set_text(f"Position: {self.vm.pos}")
         self.text_registers.set_text(f"Registers: {self.vm.registers}")
         self.text_stack.set_text(f"Stack: {self.vm.stack}")
