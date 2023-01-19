@@ -10,6 +10,9 @@ class OutputBuffer(urwid.ListWalker):
         self.lines = [urwid.Text("")]
         self.focus = 0
 
+    def __len__(self):
+        return len(self.lines)
+
     def get_focus(self):
         return self._get_line_at(self.focus)
 
@@ -44,104 +47,121 @@ class OutputBuffer(urwid.ListWalker):
 
         self._modified()
 
-def main(vm):
-    div = urwid.Divider()
+class VMDebugger():
+    def __init__(self, vm: VirtualMachine):
+        self.vm = vm
 
-    header = urwid.LineBox(urwid.Text("Debugger"))
+        self.header = urwid.LineBox(urwid.Text("Debugger"))
 
-    position_text = urwid.Text(f"Position: {vm.pos}")
-    registers_text = urwid.Text(f"Registers: {vm.registers}")
-    stack_text = urwid.Text(f"Stack: {vm.stack}")
-    ncycles_text = urwid.Text(f"Steps: {vm.ncycles}")
-    vmstatus_text = urwid.Text(f"Status: {str(vm.status)}")
-    status_widget = urwid.LineBox(
-        urwid.Pile([position_text, registers_text, stack_text, ncycles_text, vmstatus_text]),
-        title="Status"
-    )
+        # Status widget
+        self.text_position = urwid.Text(f"Position: {vm.pos}")
+        self.text_registers = urwid.Text(f"Registers: {vm.registers}")
+        self.text_stack = urwid.Text(f"Stack: {vm.stack}")
+        self.text_ncycles = urwid.Text(f"Steps: {vm.ncycles}")
+        self.text_vmstatus = urwid.Text(f"Status: {str(vm.status)}")
+        self.status_widget = urwid.LineBox(
+            urwid.Pile([
+                self.text_position,
+                self.text_registers,
+                self.text_stack,
+                self.text_ncycles,
+                self.text_vmstatus,
+            ]),
+            title="Status"
+        )
 
-    output_walker = OutputBuffer()
-    output_widget = urwid.ListBox(output_walker)
-    output_widget_box = urwid.LineBox(output_widget, title="Output")
+        # stdout
+        output_walker = OutputBuffer()
+        self.output_widget = urwid.ListBox(output_walker)
 
-    input_widget = urwid.Edit("")
-    input_widget_box = urwid.LineBox(input_widget, title="Input")
+        # stdin
+        self.input_widget = urwid.Edit("")
 
-    status_line = urwid.Text("")
-    status_line_box = urwid.LineBox(status_line)
+        # status line
+        self.status_line = urwid.Text("")
 
-    button_quit = urwid.Button("(q)uit")
-    button_step = urwid.Button("(s)tep")
-    button_run = urwid.Button("(r)un")
-    footer = urwid.LineBox(
-        urwid.Columns([button_quit, div, button_step, div, button_run])
-    )
+        # footer
+        self.footer = urwid.LineBox(
+            urwid.Columns([
+                urwid.Button("(q)uit"),
+                urwid.Button("(s)tep"),
+                urwid.Button("(r)un"),
+            ])
+        )
 
-    pile = urwid.Pile([
-        header,
-        status_widget,
-        (30, output_widget_box),
-        input_widget_box,
-        status_line_box,
-        footer,
-    ])
-    top = urwid.Filler(pile, valign="top")
+        self.main_pile = urwid.Pile([
+            self.header,
+            self.status_widget,
+            (30, urwid.LineBox(self.output_widget, title="Output")),
+            urwid.LineBox(self.input_widget, title="Input"),
+            urwid.LineBox(self.status_line),
+            self.footer,
+        ])
+        self.top = urwid.Filler(self.main_pile, valign="top")
 
-    def update_status():
-        position_text.set_text(f"Position: {vm.pos}")
-        registers_text.set_text(f"Registers: {vm.registers}")
-        stack_text.set_text(f"Stack: {vm.stack}")
-        ncycles_text.set_text(f"Steps: {vm.ncycles}")
-        vmstatus_text.set_text(f"Status: {str(vm.status)}")
+        self.loop = urwid.MainLoop(self.top, unhandled_input=self.unhandled_input)
+        self.loop.screen.set_terminal_properties(colors=256)
 
-        output_widget.set_focus(len(output_walker.lines))
+        self.vm.stdout = output_walker
+        self.vm.break_on_input = True
 
-        loop.draw_screen()
+        self.update_status_widget(force_update=False)
 
-    def vm_step():
-        vm.step()
-        update_status()
+    def unhandled_input(self, key):
+        self.status_line.set_text(f"You pressed: {repr(key)}")
 
-    def vm_run():
-        if vm.status == VirtualMachineStatus.FINISHED:
-            return
-
-        running = vm.step()
-        while running:
-            running = vm.step()
-            if vm.ncycles % SCREEN_UPDATE_INTERVAL == 0:
-                update_status()
-
-        if vm.status == VirtualMachineStatus.EXPECTING_INPUT:
-            input_widget.set_edit_text("")
-            pile.focus_position = 3
-
-    def show_or_exit(key):
         match key:
             case "q":
                 raise urwid.ExitMainLoop()
             case "s":
-                vm_step()
+                self.vm_step()
             case "r":
-                vm_run()
+                self.vm_run()
             case "enter":
-                if pile.focus_position == 3 and vm.status != VirtualMachineStatus.FINISHED:
-                    text = input_widget.get_edit_text() + "\n"
-                    vm.input_buffer = text
-                    pile.focus_position = 2
-                    vm_run()
+                if self.main_pile.focus_position == 3 and self.vm.status != VirtualMachineStatus.FINISHED:
+                    text = self.input_widget.get_edit_text() + "\n"
+                    self.vm.input_buffer = text
+                    self.main_pile.focus_position = 2
+                    self.vm_run()
             case "esc":
-                pile.focus_position = 2
+                self.main_pile.focus_position = 2
             case _:
-                status_line.set_text(f"You pressed: {repr(key)}")
+                self.status_line.set_text(f"You pressed: {repr(key)}")
 
-    loop = urwid.MainLoop(top, unhandled_input=show_or_exit)
-    loop.screen.set_terminal_properties(colors=256)
+    def vm_step(self):
+        self.vm.step()
+        self.update_status_widget()
 
-    vm.stdout = output_walker
-    vm.break_on_input = True
+    def vm_run(self):
+        if self.vm.status == VirtualMachineStatus.FINISHED:
+            return
 
-    loop.run()
+        running = self.vm.step()
+        while running:
+            running = self.vm.step()
+
+            if self.vm.ncycles % SCREEN_UPDATE_INTERVAL == 0:
+                self.update_status_widget()
+
+        self.update_status_widget()
+
+        if self.vm.status == VirtualMachineStatus.EXPECTING_INPUT:
+            self.input_widget.set_edit_text("")
+            self.main_pile.focus_position = 3
+
+    def update_status_widget(self, force_update : bool = True):
+        self.text_position.set_text(f"Position: {self.vm.pos}")
+        self.text_registers.set_text(f"Registers: {self.vm.registers}")
+        self.text_stack.set_text(f"Stack: {self.vm.stack}")
+        self.text_ncycles.set_text(f"Cycles: {self.vm.ncycles}")
+        self.text_vmstatus.set_text(f"Status: {str(self.vm.status)}")
+
+        self.output_widget.set_focus(len(self.output_widget.body))
+
+        if force_update:
+            self.loop.draw_screen()
 
 if __name__ == "__main__":
     VM = VirtualMachine.from_binary("challenge.bin")
-    main(VM)
+    VMD = VMDebugger(VM)
+    VMD.loop.run()
