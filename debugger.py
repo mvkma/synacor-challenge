@@ -3,16 +3,9 @@ import urwid
 
 from vm import VirtualMachine
 
-class InputBuffer():
-    def __init__(self, input_widget):
-        self.input_widget = input_widget
-
-    def readline(self):
-        self.input_widget.focus()
-
 class OutputBuffer(urwid.ListWalker):
     def __init__(self):
-        self.lines = []
+        self.lines = [urwid.Text("")]
         self.focus = 0
 
     def get_focus(self):
@@ -38,10 +31,14 @@ class OutputBuffer(urwid.ListWalker):
         return self.lines[-1], pos
 
     def write(self, data: str):
+        final_newline = self.lines.pop()
+
         new_lines = data.splitlines()
         for l in new_lines:
             text = urwid.Text(l)
             self.lines.append(text)
+
+        self.lines.append(final_newline)
 
         self._modified()
 
@@ -92,6 +89,8 @@ def main(vm):
         stack_text.set_text(f"Stack: {vm.stack}")
         nsteps_text.set_text(f"Steps: {vm.nsteps}")
 
+        output_widget.set_focus(len(output_walker.lines))
+
         loop.draw_screen()
 
     def vm_step():
@@ -105,8 +104,8 @@ def main(vm):
             if vm.nsteps % 100 == 0:
                 update_status()
 
-            if vm.nsteps > 750000:
-                break
+        input_widget.set_edit_text("")
+        pile.focus_position = 3
 
     def show_or_exit(key):
         match key:
@@ -116,6 +115,14 @@ def main(vm):
                 vm_step()
             case "r":
                 vm_run()
+            case "enter":
+                if pile.focus_position == 3:
+                    text = input_widget.get_edit_text() + "\n"
+                    vm.input_buffer = text
+                    pile.focus_position = 2
+                    vm_run()
+            case "esc":
+                pile.focus_position = 2
             case _:
                 status_line.set_text(f"You pressed: {repr(key)}")
 
@@ -123,6 +130,7 @@ def main(vm):
     loop.screen.set_terminal_properties(colors=256)
 
     vm.stdout = output_walker
+    vm.break_on_input = True
 
     loop.run()
 
