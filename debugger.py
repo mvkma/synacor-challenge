@@ -1,9 +1,31 @@
 import urwid
-from typing import Tuple
+from typing import Tuple, List
 
-from vm import VirtualMachine, VirtualMachineStatus
+from vm import VirtualMachine, VirtualMachineStatus, OpCode, OpCodeArguments
 
 SCREEN_UPDATE_INTERVAL = 100
+
+OPCODE_NAMES = [str(op).split(".")[1] for op in OpCode]
+
+def disassemble_next(vm: VirtualMachine, pos: int) -> Tuple[str, List[int], int]:
+    op = vm.program[pos]
+    nargs = OpCodeArguments[op]
+    args = vm.program[pos + 1 : pos + 1 + nargs]
+
+    return (OPCODE_NAMES[op], args, pos + nargs + 1)
+
+def disassemble_prev(vm: VirtualMachine, pos: int) -> Tuple[str, List[int], int]:
+    k = 1
+    while vm.program[pos - k] not in range(22):
+        k += 1
+
+    pos = pos - k
+
+    op = vm.program[pos]
+    nargs = OpCodeArguments[op]
+    args = vm.program[pos + 1 : pos + 1 + nargs]
+
+    return (OPCODE_NAMES[op], args, pos)
 
 class OutputBuffer(urwid.ListWalker):
     def __init__(self):
@@ -163,5 +185,5 @@ class VMDebugger():
 
 if __name__ == "__main__":
     VM = VirtualMachine.from_binary("challenge.bin")
-    VMD = VMDebugger(VM)
-    VMD.loop.run()
+    # VMD = VMDebugger(VM)
+    # VMD.loop.run()
