@@ -27,6 +27,56 @@ def disassemble_prev(vm: VirtualMachine, pos: int) -> Tuple[str, List[int], int]
 
     return (OPCODE_NAMES[op], args, pos)
 
+def disassemble(vm: VirtualMachine) -> List[Tuple[int, int, List[int]]]:
+    pos = 0
+    asm = []
+    while pos < len(vm.program):
+        op = vm.program[pos]
+        nargs = OpCodeArguments.get(op, 0)
+        args = vm.program[pos + 1 : pos + 1 + nargs]
+        pos += nargs + 1
+        asm.append((pos, op, args))
+
+    return asm
+
+class DisassemblyWalker(urwid.ListWalker):
+    def __init__(self, vm: VirtualMachine):
+        self.vm = vm
+
+        self.asm = disassemble(self.vm)
+        self.focus = 0
+
+    def reset(self):
+        self.asm = disassemble(self.vm)
+
+    def get_focus(self):
+        return self._get_line_at(self.focus)
+
+    def set_focus(self, focus: int) -> None:
+        self.focus = focus
+        self._modified()
+
+    def get_next(self, pos: int):
+        return self._get_line_at(pos + 1)
+
+    def get_prev(self, pos: int):
+        return self._get_line_at(pos - 1)
+
+    def _get_line_at(self, pos: int):
+        if pos < 0 or len(self.asm) == 0:
+            return None, None
+
+        vmpos, opcode, args = self.asm[pos]
+        if opcode in range(22):
+            opcode = OPCODE_NAMES[opcode]
+
+        text = urwid.Text(str(vmpos).rjust(6) +
+                          str(opcode).rjust(6) +
+                          "".join(str(a).rjust(6) for a in args)
+                          )
+
+        return text, pos
+
 class OutputBuffer(urwid.ListWalker):
     def __init__(self):
         self.lines = [urwid.Text("")]
@@ -35,20 +85,20 @@ class OutputBuffer(urwid.ListWalker):
     def __len__(self) -> int:
         return len(self.lines)
 
-    def get_focus(self) -> Tuple[urwid.Edit, int] | Tuple[None, None]:
+    def get_focus(self) -> Tuple[urwid.Text, int] | Tuple[None, None]:
         return self._get_line_at(self.focus)
 
     def set_focus(self, focus: int) -> None:
         self.focus = focus
         self._modified()
 
-    def get_next(self, pos: int) -> Tuple[urwid.Edit, int] | Tuple[None, None]:
+    def get_next(self, pos: int) -> Tuple[urwid.Text, int] | Tuple[None, None]:
         return self._get_line_at(pos + 1)
 
-    def get_prev(self, pos: int) -> Tuple[urwid.Edit, int] | Tuple[None, None]:
+    def get_prev(self, pos: int) -> Tuple[urwid.Text, int] | Tuple[None, None]:
         return self._get_line_at(pos - 1)
 
-    def _get_line_at(self, pos: int) -> Tuple[urwid.Edit, int] | Tuple[None, None]:
+    def _get_line_at(self, pos: int) -> Tuple[urwid.Text, int] | Tuple[None, None]:
         if pos < 0 or len(self.lines) == 0:
             return None, None
 
@@ -99,6 +149,10 @@ class VMDebugger():
         # stdin
         self.input_widget = urwid.Edit("")
 
+        # disassembly
+        self.disassembly_walker = DisassemblyWalker(self.vm)
+        self.disassembly_widget = urwid.ListBox(self.disassembly_walker)
+
         # status line
         self.status_line = urwid.Text("")
 
@@ -114,8 +168,9 @@ class VMDebugger():
         self.main_pile = urwid.Pile([
             self.header,
             self.status_widget,
-            (30, urwid.LineBox(self.output_widget, title="Output")),
+            (15, urwid.LineBox(self.output_widget, title="Output")),
             urwid.LineBox(self.input_widget, title="Input"),
+            (15, urwid.LineBox(self.disassembly_widget, title="Disassembly")),
             urwid.LineBox(self.status_line),
             self.footer,
         ])
@@ -148,7 +203,7 @@ class VMDebugger():
             case "esc":
                 self.main_pile.focus_position = 2
             case _:
-                self.status_line.set_text(f"You pressed: {repr(key)}")
+                self.status_line.set_text(f"You pressed: {repr(key)}, {self.disassembly_walker.get_focus()[1]}")
 
     def vm_step(self) -> None:
         self.vm.step()
@@ -178,6 +233,8 @@ class VMDebugger():
         self.text_ncycles.set_text(f"Cycles: {self.vm.ncycles}")
         self.text_vmstatus.set_text(f"Status: {str(self.vm.status)}")
 
+        self.disassembly_walker.reset()
+
         self.output_widget.set_focus(len(self.output_widget.body))
 
         if force_update:
@@ -185,5 +242,5 @@ class VMDebugger():
 
 if __name__ == "__main__":
     VM = VirtualMachine.from_binary("challenge.bin")
-    # VMD = VMDebugger(VM)
-    # VMD.loop.run()
+    VMD = VMDebugger(VM)
+    VMD.loop.run()
