@@ -3,7 +3,7 @@ from typing import Tuple, List
 
 from vm import VirtualMachine, VirtualMachineStatus, OpCode, OpCodeArguments
 
-SCREEN_UPDATE_INTERVAL = 100
+SCREEN_UPDATE_INTERVAL = 1000
 
 OPCODE_NAMES = [str(op).split(".")[1] for op in OpCode]
 
@@ -34,8 +34,8 @@ def disassemble(vm: VirtualMachine) -> List[Tuple[int, int, List[int]]]:
         op = vm.program[pos]
         nargs = OpCodeArguments.get(op, 0)
         args = vm.program[pos + 1 : pos + 1 + nargs]
-        pos += nargs + 1
         asm.append((pos, op, args))
+        pos += nargs + 1
 
     return asm
 
@@ -45,32 +45,44 @@ class DisassemblyWalker(urwid.ListWalker):
 
         self.asm = disassemble(self.vm)
         self.focus = 0
+        self.reset()
 
-    def reset(self):
+    def reset(self) -> None:
         self.asm = disassemble(self.vm)
 
-    def get_focus(self):
+        i = 0
+        for vmpos, _, _ in self.asm:
+            if vmpos == self.vm.pos:
+                break
+            i += 1
+
+        self.set_focus(max(0, i - 2))
+
+    def get_focus(self) -> Tuple[urwid.Text, int] | Tuple[None, None]:
         return self._get_line_at(self.focus)
 
     def set_focus(self, focus: int) -> None:
         self.focus = focus
         self._modified()
 
-    def get_next(self, pos: int):
+    def get_next(self, pos: int) -> Tuple[urwid.Text, int] | Tuple[None, None]:
         return self._get_line_at(pos + 1)
 
-    def get_prev(self, pos: int):
+    def get_prev(self, pos: int) -> Tuple[urwid.Text, int] | Tuple[None, None]:
         return self._get_line_at(pos - 1)
 
-    def _get_line_at(self, pos: int):
-        if pos < 0 or len(self.asm) == 0:
+    def _get_line_at(self, pos: int) -> Tuple[urwid.Text, int] | Tuple[None, None]:
+        if pos < 0 or pos >= len(self.asm) or len(self.asm) == 0:
             return None, None
 
         vmpos, opcode, args = self.asm[pos]
         if opcode in range(22):
             opcode = OPCODE_NAMES[opcode]
 
-        text = urwid.Text(str(vmpos).rjust(6) +
+        m = "> " if vmpos == self.vm.pos else "  "
+
+        text = urwid.Text(m +
+                          str(vmpos).rjust(6) +
                           str(opcode).rjust(6) +
                           "".join(str(a).rjust(6) for a in args)
                           )
@@ -199,11 +211,12 @@ class VMDebugger():
                     text = self.input_widget.get_edit_text() + "\n"
                     self.vm.input_buffer = text
                     self.main_pile.focus_position = 2
-                    self.vm_run()
+                    # self.vm_run()
+                    self.vm_step()
             case "esc":
                 self.main_pile.focus_position = 2
             case _:
-                self.status_line.set_text(f"You pressed: {repr(key)}, {self.disassembly_walker.get_focus()[1]}")
+                self.status_line.set_text(f"You pressed: {repr(key)}")
 
     def vm_step(self) -> None:
         self.vm.step()
@@ -234,6 +247,7 @@ class VMDebugger():
         self.text_vmstatus.set_text(f"Status: {str(self.vm.status)}")
 
         self.disassembly_walker.reset()
+        self.disassembly_widget.set_focus_valign("top")
 
         self.output_widget.set_focus(len(self.output_widget.body))
 
