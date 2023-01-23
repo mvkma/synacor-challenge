@@ -130,13 +130,13 @@ class VirtualMachine:
     def step(self) -> bool:
         op, args = self.read_instruction()
 
-        if op == OpCode.HALT:
-            self.status = VirtualMachineStatus.FINISHED
-            return False
-
         if len(self.output_buffer) > 0 and self.output_buffer[-1] == "\n":
             print(self.output_buffer, end="", file=self.stdout)
             self.output_buffer = ""
+
+        if op == OpCode.HALT:
+            self.status = VirtualMachineStatus.FINISHED
+            return False
 
         match op:
             case OpCode.SET:
