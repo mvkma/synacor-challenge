@@ -7,6 +7,13 @@ SCREEN_UPDATE_INTERVAL = 1000
 
 OPCODE_NAMES = [str(op).split(".")[1] for op in OpCode]
 
+PALETTE = [
+    ("opcode", "light blue", "black", ()),
+    ("args", "light green", "black", ()),
+    ("pos", "yellow", "black", ()),
+    ("brk", "light red", "black", ()),
+]
+
 def disassemble_next(vm: VirtualMachine, pos: int) -> Tuple[str, List[int], int]:
     op = vm.program[pos]
     nargs = OpCodeArguments[op]
@@ -82,13 +89,14 @@ class DisassemblyWalker(urwid.ListWalker):
 
         mpos = ">" if vmpos == self.vm.pos else " "
         mbrk = "o" if vmpos in self.breakpoints else " "
-        m = mpos + mbrk + " "
 
-        text = urwid.Text(m +
-                          str(vmpos).rjust(6) +
-                          str(opcode).rjust(6) +
-                          "".join(str(a).rjust(6) for a in args)
-                          )
+        text = urwid.Text([("brk", mpos),
+                           ("brk", mbrk),
+                           " ",
+                           ("pos", str(vmpos).rjust(6)),
+                           ("opcode", str(opcode).rjust(6)),
+                           ("args", "".join(str(a).rjust(6) for a in args)),
+                           ])
 
         return text, pos
 
@@ -198,7 +206,7 @@ class VMDebugger():
         ])
         self.top = urwid.Filler(self.main_pile, valign="top")
 
-        self.loop = urwid.MainLoop(self.top, unhandled_input=self.unhandled_input)
+        self.loop = urwid.MainLoop(self.top, PALETTE, unhandled_input=self.unhandled_input)
         self.loop.screen.set_terminal_properties(colors=256)
 
         self.vm.stdout = output_walker
@@ -278,3 +286,14 @@ if __name__ == "__main__":
     VM = VirtualMachine.from_binary("challenge.bin")
     VMD = VMDebugger(VM)
     VMD.loop.run()
+
+    # 885 CALL 1723 [843, 1, 30000, 0, 0, 0, 0, 0] [887]
+
+    # 1739 CALL  2125
+    # 1741  SET 32769 16724
+    # 1744 CALL  2125
+    # ...
+    # JF 32768 1730
+
+    # 1766 RET [843, 1, 30000, 0, 0, 0, 0, 0] []
+
