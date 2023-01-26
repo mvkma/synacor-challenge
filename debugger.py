@@ -12,7 +12,10 @@ PALETTE = [
     ("args", "light green", "black", ()),
     ("pos", "yellow", "black", ()),
     ("brk", "light red", "black", ()),
+    ("label", "dark gray", "black", ()),
 ]
+
+NUM_PADDING = 6
 
 def disassemble_next(vm: VirtualMachine, pos: int) -> Tuple[str, List[int], int]:
     op = vm.program[pos]
@@ -93,9 +96,9 @@ class DisassemblyWalker(urwid.ListWalker):
         text = urwid.Text([("brk", mpos),
                            ("brk", mbrk),
                            " ",
-                           ("pos", str(vmpos).rjust(6)),
-                           ("opcode", str(opcode).rjust(6)),
-                           ("args", "".join(str(a).rjust(6) for a in args)),
+                           ("pos", str(vmpos).rjust(NUM_PADDING)),
+                           ("opcode", str(opcode).rjust(NUM_PADDING)),
+                           ("args", "".join(str(a).rjust(NUM_PADDING) for a in args)),
                            ])
 
         return text, pos
@@ -151,16 +154,12 @@ class VMDebugger():
 
         # Status widget
         self.text_position = urwid.Text(f"Position: {vm.pos}")
-        self.text_registers = urwid.Text(f"Registers: {vm.registers}")
-        self.text_stack = urwid.Text(f"Stack: {vm.stack}")
         self.text_ncycles = urwid.Text(f"Steps: {vm.ncycles}")
         self.text_vmstatus = urwid.Text(f"Status: {str(vm.status)}")
         self.text_breakpoints = urwid.Text(f"Breakpoints: {str(self.breakpoints)}")
         self.status_widget = urwid.LineBox(
             urwid.Pile([
                 self.text_position,
-                self.text_registers,
-                self.text_stack,
                 self.text_ncycles,
                 self.text_vmstatus,
                 self.text_breakpoints,
@@ -182,6 +181,16 @@ class VMDebugger():
         # breakpoint entry
         self.breakpoint_widget = urwid.IntEdit("")
 
+        # registers
+        self.registers_line = urwid.Text([str(val).rjust(NUM_PADDING) for val in vm.registers])
+        self.registers_widget = urwid.Pile([
+            urwid.Text([("label", str(n).rjust(NUM_PADDING)) for n in range(len(vm.registers))]),
+            self.registers_line
+        ])
+
+        # stack
+        self.stack_widget = urwid.Text("")
+
         # status line
         self.status_line = urwid.Text("")
 
@@ -197,6 +206,8 @@ class VMDebugger():
         self.main_pile = urwid.Pile([
             self.header,
             self.status_widget,
+            urwid.LineBox(self.registers_widget, title="Registers"),
+            urwid.LineBox(self.stack_widget, title="Stack"),
             (15, urwid.LineBox(self.output_widget, title="Output")),
             urwid.LineBox(self.input_widget, title="Input"),
             (15, urwid.LineBox(self.disassembly_widget, title="Disassembly")),
@@ -225,15 +236,15 @@ class VMDebugger():
             case "r":
                 self.vm_run()
             case "b":
-                self.main_pile.focus_position = 5
+                self.main_pile.focus_position = 7
             case "enter":
-                if self.main_pile.focus_position == 3 and self.vm.status != VirtualMachineStatus.FINISHED:
+                if self.main_pile.focus_position == 5 and self.vm.status != VirtualMachineStatus.FINISHED:
                     text = self.input_widget.get_edit_text() + "\n"
                     self.vm.input_buffer = text
-                    self.main_pile.focus_position = 2
+                    self.main_pile.focus_position = 4
                     # self.vm_run()
                     self.vm_step()
-                elif self.main_pile.focus_position == 5:
+                elif self.main_pile.focus_position == 7:
                     pt = self.breakpoint_widget.value()
                     if pt in self.breakpoints:
                         self.breakpoints.remove(pt)
@@ -241,7 +252,7 @@ class VMDebugger():
                         self.breakpoints.add(pt)
                     self.update_status_widget()
             case "esc":
-                self.main_pile.focus_position = 2
+                self.main_pile.focus_position = 4
             case _:
                 self.status_line.set_text(f"You pressed: {repr(key)}")
 
@@ -264,15 +275,20 @@ class VMDebugger():
 
         if self.vm.status == VirtualMachineStatus.EXPECTING_INPUT:
             self.input_widget.set_edit_text("")
-            self.main_pile.focus_position = 3
+            self.main_pile.focus_position = 5
 
     def update_status_widget(self, force_update : bool = True) -> None:
-        self.text_position.set_text(f"Position: {self.vm.pos}")
-        self.text_registers.set_text(f"Registers: {self.vm.registers}")
-        self.text_stack.set_text(f"Stack: {self.vm.stack}")
+        self.text_position.set_text(["Position: ", ("pos", f"{self.vm.pos}")])
         self.text_ncycles.set_text(f"Cycles: {self.vm.ncycles}")
         self.text_vmstatus.set_text(f"Status: {str(self.vm.status)}")
-        self.text_breakpoints.set_text(f"Breakpoints: {str(self.breakpoints)}")
+        self.text_breakpoints.set_text(["Breakpoints: ", ("brk", f"{str(self.breakpoints)}")])
+
+        self.registers_line.set_text([str(val).rjust(NUM_PADDING) for val in self.vm.registers])
+
+        if len(self.vm.stack) > 0:
+            self.stack_widget.set_text([str(val).rjust(NUM_PADDING) for val in self.vm.stack])
+        else:
+            self.stack_widget.set_text("")
 
         self.disassembly_walker.reset()
         self.disassembly_widget.set_focus_valign("top")
