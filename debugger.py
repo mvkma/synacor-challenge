@@ -150,8 +150,6 @@ class VMDebugger():
         self.vm = vm
         self.breakpoints = set()
 
-        self.header = urwid.LineBox(urwid.Text("Debugger"))
-
         # Status widget
         self.text_position = urwid.Text(f"Position: {vm.pos}")
         self.text_ncycles = urwid.Text(f"Steps: {vm.ncycles}")
@@ -194,17 +192,12 @@ class VMDebugger():
         # status line
         self.status_line = urwid.Text("")
 
-        # footer
-        self.footer = urwid.LineBox(
-            urwid.Columns([
-                urwid.Button("(q)uit"),
-                urwid.Button("(s)tep"),
-                urwid.Button("(r)un"),
-            ])
-        )
+        # help text
+        self.help_text = urwid.Text([
+            "Commands: ", "[q]uit", " | ", "[r]un", " | ", "[s]tep", " | ", "[b]reakpoint"
+        ])
 
         self.main_pile = urwid.Pile([
-            self.header,
             self.status_widget,
             urwid.LineBox(self.registers_widget, title="Registers"),
             urwid.LineBox(self.stack_widget, title="Stack"),
@@ -213,10 +206,21 @@ class VMDebugger():
             (15, urwid.LineBox(self.disassembly_widget, title="Disassembly")),
             urwid.LineBox(self.breakpoint_widget, title="Breakpoint"),
             urwid.LineBox(self.status_line),
-            self.footer,
+            urwid.LineBox(self.help_text),
         ])
-        self.top = urwid.Filler(self.main_pile, valign="top")
 
+        self.pile_indices = {
+            "status": 0,
+            "registers": 1,
+            "stack": 2,
+            "output": 3,
+            "input": 4,
+            "disassembly": 5,
+            "breakpoint_input": 6,
+            "status": 7,
+        }
+
+        self.top = urwid.Filler(self.main_pile, valign="top")
         self.loop = urwid.MainLoop(self.top, PALETTE, unhandled_input=self.unhandled_input)
         self.loop.screen.set_terminal_properties(colors=256)
 
@@ -236,15 +240,16 @@ class VMDebugger():
             case "r":
                 self.vm_run()
             case "b":
-                self.main_pile.focus_position = 7
+                self.main_pile.focus_position = self.pile_indices["breakpoint_input"]
             case "enter":
-                if self.main_pile.focus_position == 5 and self.vm.status != VirtualMachineStatus.FINISHED:
+                if (self.main_pile.focus_position == self.pile_indices["input"] and
+                    self.vm.status != VirtualMachineStatus.FINISHED):
                     text = self.input_widget.get_edit_text() + "\n"
                     self.vm.input_buffer = text
-                    self.main_pile.focus_position = 4
+                    self.main_pile.focus_position = self.pile_indices["output"]
                     # self.vm_run()
                     self.vm_step()
-                elif self.main_pile.focus_position == 7:
+                elif self.main_pile.focus_position == self.pile_indices["breakpoint_input"]:
                     pt = self.breakpoint_widget.value()
                     if pt in self.breakpoints:
                         self.breakpoints.remove(pt)
@@ -252,7 +257,7 @@ class VMDebugger():
                         self.breakpoints.add(pt)
                     self.update_status_widget()
             case "esc":
-                self.main_pile.focus_position = 4
+                self.main_pile.focus_position = self.pile_indices["output"]
             case _:
                 self.status_line.set_text(f"You pressed: {repr(key)}")
 
@@ -275,7 +280,7 @@ class VMDebugger():
 
         if self.vm.status == VirtualMachineStatus.EXPECTING_INPUT:
             self.input_widget.set_edit_text("")
-            self.main_pile.focus_position = 5
+            self.main_pile.focus_position = self.pile_indices["input"]
 
     def update_status_widget(self, force_update : bool = True) -> None:
         self.text_position.set_text(["Position: ", ("pos", f"{self.vm.pos}")])
